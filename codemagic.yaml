@@ -1,0 +1,43 @@
+workflows:
+  ios-test:
+    name: Zeed iOS Test Build
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    environment:
+      xcode: latest
+    scripts:
+      - name: Validate iOS project
+        script: |
+          set -euo pipefail
+          plutil -lint Zeed.xcframework/Info.plist
+          plutil -lint MoltenVK.xcframework/Info.plist
+          plutil -lint Zeed-Info.plist
+          xcodebuild -list -project Zeed.xcodeproj
+      - name: Build iOS app
+        script: |
+          set -euo pipefail
+          mkdir -p build
+          xcodebuild \
+            -project Zeed.xcodeproj \
+            -scheme Zeed \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath build/Zeed.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build/xcodebuild.log
+      - name: Package IPA
+        script: |
+          set -euo pipefail
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/Zeed.app"
+          test -d "$APP_PATH"
+          rm -rf build/Payload
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/Zeed.app
+          cd build
+          /usr/bin/zip -qry Zeed.ipa Payload
+    artifacts:
+      - build/Zeed.ipa
+      - build/xcodebuild.log
+      - build/Zeed.xcresult
